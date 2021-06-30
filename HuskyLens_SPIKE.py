@@ -1,7 +1,7 @@
 #from spike import PrimeHub, LightMatrix, Button, StatusLight, ForceSensor, MotionSensor, Speaker, ColorSensor, App, DistanceSensor, , MotorPair
 #from spike.control import wait_for_seconds, wait_until, Timer
 from spike import PrimeHub, LightMatrix, Button, Motor
-from utime import sleep_ms
+from utime import sleep_ms, ticks_ms
 from math import *
 
 import hub
@@ -12,23 +12,10 @@ import sys, os
 # Author: Robert Prast (robert@dfrobot.com)
 # 08/03/2020
 # Adapted for RI / SPIKE Hub
-# Author: Daniele Benedettelli (robotics.benedettelli.com)
+# Author: Daniele Benedettelli (https://robotics.benedettelli.com)
 # 28/06/2021
-# Dependenices :
-#pyserial
-#smbus
-#pypng
-#
-# How to use :
-# 1) First import the library into your project and connect your HuskyLens
-# 2) Init huskylens
-#A) Serial
-#        huskyLens = HuskyLensLibrary("SERIAL","COM_PORT", speed) *speed is integer
-#B) I2C
-#        huskyLens = HuskyLensLibrary("I2C","", address=0xADDR) *address is hex integer
-# 3) Call your desired functions on the huskyLens object!
-###
 
+# DON'T TOUCH THIS CODE!!! You can edit the code under the MAIN PROGRAM heading below (line 430)
 
 commandHeaderAndAddress = "55AA11"
 algorithmsByteID = {
@@ -445,12 +432,14 @@ MAIN PROGRAM
 """
 
 primeHub = PrimeHub()
-panMotor = Motor('B')
-tiltMotor = Motor('D')
+panMotor = Motor('E')
+tiltMotor = Motor('C')
 # low level motors (non-blocking functions)
-panMotorL = hub.port.B.motor
-tiltMotorL = hub.port.D.motor
+panMotorL = hub.port.E.motor
+tiltMotorL = hub.port.C.motor
+display = LightMatrix()
 
+#initialize motor positions
 panMotor.run_to_position(0)
 tiltMotor.run_to_position(0)
 
@@ -460,30 +449,19 @@ tiltMotorL.preset(0)
 huskyLens = HuskyLensCamera(hub.port.A, baudrate = 9600, debug=False)
 
 if (huskyLens.knock()=="OK"):
-    primeHub.light_matrix.show_image('HAPPY')
+    display.show_image('HAPPY')
 else:
-    primeHub.light_matrix.show_image('SAD')
-sleep_ms(1000)
+    display.show_image('SAD')
 
-#huskyLens.algorithm("ALGORITHM_LINE_TRACKING")
+# uncomment the line to choose the algorithm
+
+#huskyLens.algorithm("ALGORITHM_LINE_TRACKING") # need to use huskyLens.getArrowsByID(1)
 #huskyLens.algorithm("ALGORITHM_FACE_RECOGNITION")
-#huskyLens.algorithm("ALGORITHM_COLOR_RECOGNITION")
+huskyLens.algorithm("ALGORITHM_COLOR_RECOGNITION")
 #huskyLens.algorithm("ALGORITHM_OBJECT_TRACKING")
-huskyLens.algorithm("ALGORITHM_TAG_RECOGNITION")
-huskyLens.setCustomName("DUCK",1)
-"""
-while True:
-    blocks = huskyLens.blocks()
-    x=0
-    for block in blocks:
-        x = x+1
-        bw = block.width
-        bh = block.height
-        cx = int (block.x + block.width/2)
-        cy = int (block.y + block.height/2)
-        print("Block {}: ID {} ( {}, {} )".format(x, block.ID, cx, cy))
-    #sleep_ms(10)
-"""
+#huskyLens.algorithm("ALGORITHM_TAG_RECOGNITION")
+huskyLens.setCustomName("Duck",1)
+
 def sign(n):
     if n:
         return int(abs(n)/n)
@@ -492,43 +470,39 @@ def sign(n):
 
 ex = 0
 ey = 0
-SPEED = 80
-display = LightMatrix()
-alpha = 1.0
+SPEED = 40
+alpha = 0.8
 
+T0 = ticks_ms()
+count = 1
 while True:
     blocks = huskyLens.getBlocksByID(1)
+    huskyLens.getArrowsByID
+
+    rate = 1000*count/(ticks_ms() - T0)
+    count += 1
+    print("rate {:.2f} Hz".format(rate))
+
     if len(blocks)>0:
         block = blocks[0]
         display.show_image('HAPPY')
-        bw = block.width
-        bh = block.height
+        #bw = block.width
+        #bh = block.height
         cx = block.x
         cy = block.y
-        #diag = sqrt(bw*bw+bh*bh)
         #print("Block ID {} pos ( {}, {} ) size {}".format(block.ID, cx, cy, diag))
         ex = (1-alpha)*ex + alpha*(160 - cx)
         ey = (1-alpha)*ey + alpha* (120 - cy)
-        print("error:", ex, ey)
-        #if (ex>0 and ex<30): ex = 25
-        #if (ex<0 and ex>-30): ex = -25
-        #panMotor.start_at_power(int(-1.0*ex))
-        #tiltMotor.start_at_power(int(0.4*ey))
-        tiltErr = int(-0.2*ey)
-        panErr = int(-0.3*ex)
-        #print("pan angle:", panErr)
-        SPEED = 90
-        MAX_POWER = 50
-        BRAKE = 1
-        panMotorL.run_to_position(panErr, SPEED, MAX_POWER, BRAKE, 0, 0, False)
-        #tiltMotorL.run_to_position(tiltErr, SPEED, MAX_POWER, BRAKE, 0, 0, False)
-        #sleep_ms(100)
+        #print("error:", ex, ey)
+        tiltErr = int(-0.28*ey)
+        panErr = int(-0.25*ex)
+        # print("pan angle:", panErr)
+        panMotorL.run_for_degrees(panErr, SPEED*sign(panErr), 100, 1, 0, 0, False)
+        tiltMotorL.run_for_degrees(tiltErr, SPEED*sign(tiltErr), 100, 1, 0, 0, False)
     else:
         display.off()
         ex = 0
         ey = 0
-        panMotor.stop()
-        tiltMotor.stop()
         #panMotorL.run_to_position(0, 30, 100, 1, 400, 200, False)
         #tiltMotorL.run_to_position(0, 30, 100, 1, 400, 200, False)
 
